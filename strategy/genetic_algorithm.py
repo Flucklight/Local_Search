@@ -16,24 +16,32 @@ def generate_population(gen_code_len, population, mutation_probability):
         poblacion.append(Subject(mutation_probability, quantity=gen_code_len))
 
 
-def binary_to_decimal(binary):
+def binary_to_decimal(binary, negative=False):
     value = 0
     j = len(binary) - 1
     index = 0
     for v in range(j, -1, -1):
-        value += pow(2.0, index) * (binary[v])
-        index += 1
+        if v == 0 and negative:
+            if binary[v] == 1:
+                value = -value
+        else:
+            value += pow(2.0, index) * (binary[v])
+            index += 1
     return int(value)
 
 
 def genotype_to_phenotype(subject):
     phenotype = []
-    if problem == 1:
+    if problem == 1 or problem == 3:
         s = 0
         for index in range(1, n_bits + 1):
             e = index * int(len(subject.genotype)/n_bits)
-            value = binary_to_decimal(subject.genotype[s:e])
-            phenotype.append((index - 1, value))
+            if problem == 1:
+                value = binary_to_decimal(subject.genotype[s:e])
+                phenotype.append((index - 1, value))
+            elif problem == 3:
+                value = binary_to_decimal(subject.genotype[s:e], negative=True)
+                phenotype.append(value)
             s = e
     elif problem == 2:
         index = 0
@@ -46,11 +54,13 @@ def genotype_to_phenotype(subject):
 
 def evaluation(poblat):
     file.write("\tEvaluacion de individuos\n")
+    total = 0
     for subject in poblat:
         phenotype = genotype_to_phenotype(subject)
         review = 0
-        compare = 1
         weight = 0
+        index = 0
+        compare = 1
         for data in phenotype:
             if problem == 1:
                 if data[1] >= n_bits:
@@ -69,7 +79,20 @@ def evaluation(poblat):
                     review = 0
                     break
                 review += data[0]
+            elif problem == 3:
+                if index == 0:
+                    if data < -5:
+                        review += int(math.pow(2.0, 32.0))
+                    else:
+                        review += int(math.pow(data, 2.0))
+                else:
+                    if data > 5:
+                        review += int(math.pow(2.0, 32.0))
+                    else:
+                        review += int(math.pow(data, 2.0))
+                index = 1
         subject.score = review
+        total += review
         file.write('\t\tEvaluacion del individuo {}\n'.format(subject.genotype))
         n = 1
         for data in phenotype:
@@ -77,16 +100,19 @@ def evaluation(poblat):
                 file.write('\t\t\tReina {} en la posicion ({}, {})\n'.format(n, data[0], data[1]))
             elif problem == 2:
                 file.write('\t\t\tObjeto {} con valor {}, peso {}\n'.format(n, data[0], data[1]))
+            elif problem == 3:
+                if n == 1:
+                    file.write('\t\t\tEl valor en X = {}\n'.format(data))
+                else:
+                    file.write('\t\t\tEl valor en Y = {}\n'.format(data))
             n += 1
         file.write('\t\tCalificacion = {}\n'.format(review))
+    return total
 
 
 def selection(poblat, elitism):
     file.write("Seleccion de individuos\n")
-    total = 0
-    evaluation(poblat)
-    for subject in poblat:
-        total += subject.score
+    total = evaluation(poblat)
     for subject in poblat:
         if total != 0:
             rm = subject.score / total
@@ -106,7 +132,7 @@ def get_mutual_relation(subject):
 def reinsertion(poblat, elit):
     file.write("Reinsercion\n")
     heir = []
-    if problem == 1:
+    if problem == 1 or problem == 3:
         poblat.sort(key=get_mutual_relation)
     elif problem == 2:
         poblat.sort(key=get_mutual_relation, reverse=True)
@@ -128,7 +154,8 @@ def elite(poblat):
                .format(tmp.genotype, tmp.score))
     if best_subject.score == -math.inf:
         return tmp
-    if problem == 1 and tmp.score < best_subject.score or problem == 2 and tmp.score > best_subject.score:
+    if (problem == 1 or problem == 3) and tmp.score < best_subject.score or \
+            problem == 2 and tmp.score > best_subject.score:
         return tmp
     else:
         return best_subject
@@ -167,6 +194,8 @@ def start(gen_code_len=32, generations=100, population=10, mutation_percentage=.
         file = open('reports/N_Queens.txt', 'w')
     elif problem == 2:
         file = open('reports/Knapsack.txt', 'w')
+    elif problem == 3:
+        file = open('reports/Parable.txt', 'w')
     while True:
         file.write("<-------------------------------------------------------------------------------------->\n")
         file.write('Generacion {}\n'.format(i))
@@ -174,7 +203,7 @@ def start(gen_code_len=32, generations=100, population=10, mutation_percentage=.
             file.write('\t{}\n'.format(ind.genotype))
         selection(poblacion, elitism)
         best_subject = elite(poblacion)
-        if problem == 1 and best_subject.score == 0:
+        if (problem == 1 or problem == 3) and best_subject.score == 0:
             break
         elif problem == 2 and i == generations:
             break
@@ -204,8 +233,8 @@ def init(p_type=1, n=8, path='data/ks_4_0'):
     global items
     global knapsack_weight
     problem = p_type
-    index = 0
     if problem == 1:
+        index = 0
         n_bits = n
         tmp = 0
         while tmp < n_bits:
@@ -221,3 +250,6 @@ def init(p_type=1, n=8, path='data/ks_4_0'):
                 data = line[:-1].split(' ')
                 items.append((int(data[0]), int(data[1])))
             start(gen_code_len=n_bits)
+    elif problem == 3:
+        n_bits = 2
+        start(gen_code_len=n_bits*16)
